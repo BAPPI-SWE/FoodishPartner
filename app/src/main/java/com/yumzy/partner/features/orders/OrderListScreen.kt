@@ -328,8 +328,19 @@ fun OrderCard(order: Order, onAccept: () -> Unit, onReject: () -> Unit) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Total: ৳${order.totalPrice}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                 when (order.orderStatus) {
-                    "Accepted" -> Button(onClick = {}, enabled = false) { Text("Accepted") }
-                    "Rejected" -> OutlinedButton(onClick = {}, enabled = false, border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.6f))) {
+                    "Accepted" -> Button(
+                        onClick = {},
+                        enabled = false,
+                        colors = ButtonDefaults.buttonColors(
+                            disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
+                            disabledContentColor = Color.White
+                        )
+                    ) { Text("Accepted") }
+                    "Rejected" -> OutlinedButton(
+                        onClick = {},
+                        enabled = false,
+                        border = BorderStroke(1.dp, Color.Red.copy(alpha = 0.6f))
+                    ) {
                         Text("Rejected", color = Color.Red.copy(alpha = 0.6f))
                     }
                     else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -348,32 +359,121 @@ private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, 
     val locationFilter = if (location == "All") "All Locations" else location
     val categoryName = category.removePrefix("Pre-order ")
 
+    // Split summary into two columns
     val half = (summary.size + 1) / 2
     val left = summary.take(half)
     val right = summary.drop(half)
 
     val builder = StringBuilder()
-    builder.append(
-        """
-        <html><head><style>
-        body { font-family: sans-serif; margin: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #ddd; padding: 6px; }
-        </style></head><body>
-        <h1>Yumzy Order Production Sheet</h1>
-        <p>Date: $date | Category: $categoryName | Location: $locationFilter</p>
-        <h3>Item Summary</h3><table><tr><th>Item</th><th>Qty</th></tr>
-        """.trimIndent()
-    )
+    builder.append("""
+        <html>
+        <head>
+            <style>
+                body { font-family: sans-serif; margin: 20px; }
+                .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+                h1 { margin: 0; }
+                h2, h3, h4 { margin-top: 20px; margin-bottom: 10px; }
+                table { width: 100%; border-collapse: collapse; }
+                th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+                th { background-color: #f2f2f2; }
+                .summary-tables { display: flex; justify-content: space-between; gap: 20px; }
+                .summary-tables table { width: 48%; }
+                .orders-container { display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 20px; }
+                .order-card { box-sizing: border-box; width: 24%; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; padding: 10px; page-break-inside: avoid; }
+                .order-card .info { margin-bottom: 10px; line-height: 1.4; }
+                .order-card .items { margin-bottom: 10px; }
+                .order-card .items ul { padding-left: 20px; margin: 0; }
+                .order-card .items li { margin-bottom: 4px; }
+                .order-card .total { font-weight: bold; text-align: right; }
+                .greeting {
+                  text-align: center;
+                  font-size: 12px;
+                  font-weight: bold;
+                  color: #000000;
+                  margin-bottom: 3px;
+                }
+                hr {
+                  border: 0;
+                  border-top: 1px solid #ddd;
+                  margin: 3px 0;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <h1>Yumzy Order Production Sheet</h1>
+                <h2>Category: $categoryName</h2>
+                <p>Date: $date | Location Filter: $locationFilter</p>
+            </div>
+            <h3>Total Items to Prepare</h3>
+            <div class="summary-tables">
+                <table>
+                    <tr><th>Item Name</th><th>Qty</th></tr>
+    """.trimIndent())
 
-    left.forEach { builder.append("<tr><td>${it.name}</td><td>${it.quantity}</td></tr>") }
-    builder.append("</table><h3>Orders (${orders.size})</h3>")
-
-    orders.forEach { order ->
-        builder.append("<p><b>${order.userName}</b> - ${order.fullAddress}<br>Total ৳${order.totalPrice}</p>")
+    left.forEach {
+        builder.append("<tr><td>${it.name}</td><td>${it.quantity}</td></tr>")
     }
 
-    builder.append("</body></html>")
+    builder.append("""
+                </table>
+                <table>
+                    <tr><th>Item Name</th><th>Qty</th></tr>
+    """.trimIndent())
+
+    right.forEach {
+        builder.append("<tr><td>${it.name}</td><td>${it.quantity}</td></tr>")
+    }
+
+    builder.append("""
+                </table>
+            </div>
+            <hr>
+            <h2>Individual Orders (${orders.size})</h2>
+            <div class="orders-container">
+    """.trimIndent())
+
+    orders.forEach { order ->
+        builder.append("""
+            <div class="order-card">
+              <div class="info">
+    <strong>${order.userName}</strong> 
+    ${ if (order.fullAddress.contains("Room:")) {
+            val room = order.fullAddress.substringAfter("Room:").substringBefore("\n").trim()
+            """ <span style="font-size:11px; color:#000000;">(Room:$room)</span> """
+        } else ""}<br/>
+    <hr/>
+    ${order.userPhone}<br/>
+    ${order.fullAddress.lines().filterNot { it.startsWith("Room:") }.joinToString("<br/>")}
+</div>
+              <div class="items">
+                <strong>Items:</strong>
+                <ul>
+        """.trimIndent())
+
+        order.items.forEach { item ->
+            builder.append("<li>${item["itemName"]} x ${item["quantity"]}</li>")
+        }
+
+        builder.append("""
+                </ul>
+              </div>
+               <hr/>
+               <div class="greeting">
+            <strong>Enjoy your meal –<i> Yumzy!</i></strong> 
+          </div>
+          <hr/>
+              <div class="total">Total: ৳${order.totalPrice}</div>
+            </div>
+        """.trimIndent())
+    }
+
+    builder.append("""
+            </div>
+        </body>
+        </html>
+    """.trimIndent())
+
     return builder.toString()
 }
 
@@ -381,14 +481,21 @@ private fun printOrders(context: Context, htmlContent: String) {
     val webView = WebView(context).apply {
         loadDataWithBaseURL(null, htmlContent, "text/HTML", "UTF-8", null)
     }
+
     val printManager = context.getSystemService(Context.PRINT_SERVICE) as PrintManager
     val jobName = "Yumzy_Orders_${System.currentTimeMillis()}"
-    val printAdapter =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) webView.createPrintDocumentAdapter(jobName)
-        else @Suppress("DEPRECATION") webView.createPrintDocumentAdapter()
+
+    val printAdapter = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        webView.createPrintDocumentAdapter(jobName)
+    } else {
+        @Suppress("DEPRECATION")
+        webView.createPrintDocumentAdapter()
+    }
+
     val printAttributes = PrintAttributes.Builder()
         .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
         .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
         .build()
+
     printManager.print(jobName, printAdapter, printAttributes)
 }
