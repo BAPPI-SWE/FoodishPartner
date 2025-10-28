@@ -1,3 +1,7 @@
+
+// ============================================
+// File 1: PartnerDashboardScreen.kt
+// ============================================
 package com.yumzy.partner.features.dashboard
 
 import androidx.compose.foundation.clickable
@@ -22,7 +26,6 @@ import com.google.firebase.auth.ktx.auth
 import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 
-// --- DATA CLASSES WITH DEFAULT VALUES ---
 data class PreOrderCategory(
     val id: String = "",
     val name: String = "",
@@ -50,7 +53,9 @@ fun PartnerDashboardScreen(
     onNavigateToCategoryDetail: (categoryName: String) -> Unit,
     onNavigateToEditProfile: () -> Unit,
     onDeleteItem: (itemId: String) -> Unit,
-    onDeleteCategory: (category: PreOrderCategory) -> Unit
+    onDeleteCategory: (category: PreOrderCategory) -> Unit,
+    onEditCategory: (category: PreOrderCategory) -> Unit = {},
+    onEditItem: (item: MenuItem) -> Unit = {}
 ) {
     var preOrderCategories by remember { mutableStateOf<List<PreOrderCategory>>(emptyList()) }
     var allMenuItems by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
@@ -65,7 +70,6 @@ fun PartnerDashboardScreen(
                 .addSnapshotListener { snapshot, _ ->
                     snapshot?.let {
                         preOrderCategories = it.documents.mapNotNull { doc ->
-                            // This toObject() call is what was causing the crash
                             doc.toObject(PreOrderCategory::class.java)?.copy(id = doc.id)
                         }
                     }
@@ -133,6 +137,7 @@ fun PartnerDashboardScreen(
                         category = category,
                         orderCount = orderCount,
                         onClick = { onNavigateToCategoryDetail("Pre-order ${category.name}") },
+                        onEdit = { onEditCategory(category) },
                         onDelete = { onDeleteCategory(category) }
                     )
                 }
@@ -154,7 +159,11 @@ fun PartnerDashboardScreen(
                     }
                 } else {
                     items(currentMenuItems) { item ->
-                        CurrentMenuItemCard(item = item, onDelete = { onDeleteItem(item.id) })
+                        CurrentMenuItemCard(
+                            item = item,
+                            onEdit = { onEditItem(item) },
+                            onDelete = { onDeleteItem(item.id) }
+                        )
                     }
                 }
 
@@ -172,7 +181,13 @@ fun PartnerDashboardScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PreOrderCategoryCard(category: PreOrderCategory, orderCount: Int, onClick: () -> Unit, onDelete: () -> Unit) {
+fun PreOrderCategoryCard(
+    category: PreOrderCategory,
+    orderCount: Int,
+    onClick: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -196,8 +211,11 @@ fun PreOrderCategoryCard(category: PreOrderCategory, orderCount: Int, onClick: (
                 Text(text = "Order: ${category.startTime} - ${category.endTime}", color = Color.Gray, fontSize = 14.sp)
                 Text(text = "Delivery: ${category.deliveryTime}", color = Color.Gray, fontSize = 14.sp)
             }
-            IconButton(onClick = onClick) { // Make the entire row clickable, this can be for navigation
+            IconButton(onClick = onClick) {
                 Icon(Icons.Default.ChevronRight, contentDescription = "View Category")
+            }
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit Category", tint = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = Color.Gray)
@@ -207,7 +225,7 @@ fun PreOrderCategoryCard(category: PreOrderCategory, orderCount: Int, onClick: (
 }
 
 @Composable
-fun CurrentMenuItemCard(item: MenuItem, onDelete: () -> Unit) {
+fun CurrentMenuItemCard(item: MenuItem, onEdit: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -223,6 +241,9 @@ fun CurrentMenuItemCard(item: MenuItem, onDelete: () -> Unit) {
                 modifier = Modifier.weight(1f).padding(vertical = 16.dp)
             )
             Text(text = "৳${item.price}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit Item", tint = MaterialTheme.colorScheme.primary)
+            }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.Delete, contentDescription = "Delete Item", tint = Color.Gray)
             }

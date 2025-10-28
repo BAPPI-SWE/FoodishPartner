@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
@@ -52,6 +53,7 @@ fun OrderListScreen(
     onBackClicked: () -> Unit,
     onAcceptOrder: (orderId: String, userId: String) -> Unit,
     onRejectOrder: (orderId: String, userId: String) -> Unit,
+    onDeleteOrder: (orderId: String) -> Unit,
     onAcceptAllOrders: (orders: List<Order>) -> Unit,
     onRejectAllOrders: (orders: List<Order>) -> Unit,
     onSendCustomNotification: (orderIds: List<String>, message: String) -> Unit
@@ -64,11 +66,18 @@ fun OrderListScreen(
     var restaurantName by remember { mutableStateOf("") }
     var customMessage by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var orderToDelete by remember { mutableStateOf<Order?>(null) }
 
     val context = LocalContext.current
 
     val filteredOrders = remember(allOrders, selectedLocation) {
         if (selectedLocation == "All") allOrders else allOrders.filter { it.userSubLocation == selectedLocation }
+    }
+
+    // Calculate total money from filtered orders
+    val totalMoney = remember(filteredOrders) {
+        filteredOrders.sumOf { it.totalPrice }
     }
 
     // Fetch restaurant info and orders
@@ -131,6 +140,35 @@ fun OrderListScreen(
         customMessage = ""
     }
 
+    // Delete confirmation dialog
+    if (showDeleteDialog && orderToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Order") },
+            text = { Text("Are you sure you want to permanently delete this order from ${orderToDelete?.userName}? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        orderToDelete?.let { onDeleteOrder(it.id) }
+                        showDeleteDialog = false
+                        orderToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showDeleteDialog = false
+                    orderToDelete = null
+                }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -148,7 +186,8 @@ fun OrderListScreen(
                                     filteredOrders,
                                     itemSummary,
                                     categoryName,
-                                    selectedLocation
+                                    selectedLocation,
+                                    totalMoney
                                 )
                                 printOrders(context, printableContent)
                             }
@@ -268,7 +307,11 @@ fun OrderListScreen(
                     OrderCard(
                         order = order,
                         onAccept = { onAcceptOrder(order.id, order.userId) },
-                        onReject = { onRejectOrder(order.id, order.userId) }
+                        onReject = { onRejectOrder(order.id, order.userId) },
+                        onDelete = {
+                            orderToDelete = order
+                            showDeleteDialog = true
+                        }
                     )
                 }
             }
@@ -308,13 +351,30 @@ fun FilterDropdown(
 }
 
 @Composable
-fun OrderCard(order: Order, onAccept: () -> Unit, onReject: () -> Unit) {
+fun OrderCard(
+    order: Order,
+    onAccept: () -> Unit,
+    onReject: () -> Unit,
+    onDelete: () -> Unit
+) {
     val sdf = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(order.userName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text(sdf.format(order.createdAt.toDate()), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(order.userName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(sdf.format(order.createdAt.toDate()), style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                }
+                IconButton(
+                    onClick = onDelete,
+                    colors = IconButtonDefaults.iconButtonColors(contentColor = Color.Red)
+                ) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Order")
+                }
             }
             Text(order.fullAddress, style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             Text("Contact: ${order.userPhone}", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
@@ -353,7 +413,13 @@ fun OrderCard(order: Order, onAccept: () -> Unit, onReject: () -> Unit) {
     }
 }
 
-private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, category: String, location: String): String {
+private fun formatOrdersToHtml(
+    orders: List<Order>,
+    summary: List<ItemSummary>,
+    category: String,
+    location: String,
+    totalMoney: Double
+): String {
     val sdf = SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault())
     val date = sdf.format(Date())
     val locationFilter = if (location == "All") "All Locations" else location
@@ -392,6 +458,40 @@ private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, 
                   color: #000000;
                   margin-bottom: 3px;
                 }
+                .total-summary {
+                  background-color: #f9f9f9;
+                  border: 2px solid #333;
+                  padding: 15px;
+                  margin: 20px 0;
+                  border-radius: 8px;
+                  text-align: center;
+                }
+                .total-summary h3 {
+                  margin: 0 0 10px 0;
+                  color: #333;
+                }
+                .total-summary .amounts {
+                  display: flex;
+                  justify-content: center;
+                  gap: 40px;
+                  font-size: 18px;
+                  font-weight: bold;
+                }
+                .total-summary .amount-item {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                }
+                .total-summary .amount-label {
+                  font-size: 14px;
+                  color: #666;
+                  font-weight: normal;
+                  margin-bottom: 5px;
+                }
+                .total-summary .amount-value {
+                  font-size: 20px;
+                  color: #000;
+                }
                 hr {
                   border: 0;
                   border-top: 1px solid #ddd;
@@ -405,6 +505,7 @@ private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, 
                 <h2>Category: $categoryName</h2>
                 <p>Date: $date | Location Filter: $locationFilter</p>
             </div>
+            
             <h3>Total Items to Prepare</h3>
             <div class="summary-tables">
                 <table>
@@ -429,7 +530,7 @@ private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, 
                 </table>
             </div>
             <hr>
-            <h2>Individual Orders (${orders.size})</h2>
+            <h2>Individual Orders (${orders.size}) | Total Amount: ৳${String.format("%.2f", totalMoney)}</h2>
             <div class="orders-container">
     """.trimIndent())
 
@@ -460,7 +561,7 @@ private fun formatOrdersToHtml(orders: List<Order>, summary: List<ItemSummary>, 
               </div>
                <hr/>
                <div class="greeting">
-            <strong>Enjoy your meal –<i> Yumzy!</i></strong> 
+            <strong>Enjoy your meal —<i> Yumzy!</i></strong> 
           </div>
           <hr/>
               <div class="total">Total: ৳${order.totalPrice}</div>

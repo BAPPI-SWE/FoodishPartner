@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
@@ -50,7 +51,8 @@ fun CategoryDetailScreen(
     categoryName: String,
     onNavigateToAddItem: (category: String) -> Unit,
     onNavigateToOrderList: (category: String) -> Unit,
-    onDeleteItem: (itemId: String) -> Unit
+    onDeleteItem: (itemId: String) -> Unit,
+    onEditItem: (item: MenuItem) -> Unit = {}
 ) {
     var menuItems by remember { mutableStateOf<List<MenuItem>>(emptyList()) }
     var orderCount by remember { mutableStateOf(0) }
@@ -155,6 +157,9 @@ fun CategoryDetailScreen(
                                     .padding(vertical = 16.dp)
                             )
                             Text(text = "৳${item.price}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                            IconButton(onClick = { onEditItem(item) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit Item", tint = MaterialTheme.colorScheme.primary)
+                            }
                             IconButton(onClick = { onDeleteItem(item.id) }) {
                                 Icon(Icons.Default.Delete, contentDescription = "Delete Item", tint = Color.Gray)
                             }

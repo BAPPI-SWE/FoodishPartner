@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,12 +25,14 @@ import com.yumzy.partner.features.location.LocationViewModel
 @Composable
 fun EditProfileScreen(
     onSaveChanges: (restaurantName: String, cuisine: String, imageUrl: String, deliveryLocations: List<String>) -> Unit,
+    onLogout: () -> Unit = {},
     locationViewModel: LocationViewModel = viewModel()
 ) {
     var restaurantName by remember { mutableStateOf("") }
     var cuisine by remember { mutableStateOf("") }
     var imageUrl by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(true) }
+    var showLogoutDialog by remember { mutableStateOf(false) }
 
     val locationState by locationViewModel.uiState.collectAsState()
 
@@ -42,7 +46,6 @@ fun EditProfileScreen(
                         cuisine = document.getString("cuisine") ?: ""
                         imageUrl = document.getString("imageUrl") ?: ""
                         val savedLocations = document.get("deliveryLocations") as? List<String> ?: emptyList()
-                        // Wait for locations to be fetched before setting selections
                         if (locationState.allLocations.isNotEmpty()) {
                             locationViewModel.setInitialSelections(savedLocations)
                         }
@@ -52,7 +55,6 @@ fun EditProfileScreen(
         }
     }
 
-    // This effect runs when locations are loaded to set the initial state
     LaunchedEffect(locationState.allLocations) {
         if (locationState.allLocations.isNotEmpty() && !isLoading) {
             val ownerId = Firebase.auth.currentUser?.uid ?: return@LaunchedEffect
@@ -63,6 +65,30 @@ fun EditProfileScreen(
         }
     }
 
+    // Logout confirmation dialog
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to logout?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showLogoutDialog = false
+                        onLogout()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
+                ) {
+                    Text("Logout")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -71,7 +97,16 @@ fun EditProfileScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     titleContentColor = Color.White
-                )
+                ),
+                actions = {
+                    IconButton(onClick = { showLogoutDialog = true }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = "Logout",
+                            tint = Color.White
+                        )
+                    }
+                }
             )
         }
     ) { paddingValues ->
@@ -122,6 +157,25 @@ fun EditProfileScreen(
                 ) {
                     Text(text = "Save Changes", fontSize = 16.sp)
                 }
+
+                Spacer(Modifier.height(16.dp))
+
+                OutlinedButton(
+                    onClick = { showLogoutDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
+                        contentDescription = "Logout",
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(text = "Logout", fontSize = 16.sp)
+                }
+
+                Spacer(Modifier.height(32.dp))
             }
         }
     }

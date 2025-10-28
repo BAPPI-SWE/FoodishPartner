@@ -29,6 +29,8 @@ import com.yumzy.partner.features.dashboard.PartnerDashboardScreen
 import com.yumzy.partner.features.menu.AddMenuItemScreen
 import com.yumzy.partner.features.menu.CategoryDetailScreen
 import com.yumzy.partner.features.menu.CreateCategoryScreen
+import com.yumzy.partner.features.menu.EditCategoryScreen
+import com.yumzy.partner.features.menu.EditMenuItemScreen
 import com.yumzy.partner.features.orders.Order
 import com.yumzy.partner.features.orders.OrderListScreen
 import com.yumzy.partner.features.profile.EditProfileScreen
@@ -139,6 +141,15 @@ class MainActivity : ComponentActivity() {
                             onDeleteItem = { itemId -> deleteMenuItem(ownerId, itemId) },
                             onDeleteCategory = { category ->
                                 deleteCategory(ownerId, category.id, "Pre-order ${category.name}")
+                            },
+                            onEditCategory = { category ->
+                                val encodedId = URLEncoder.encode(category.id, StandardCharsets.UTF_8.toString())
+                                navController.navigate("edit_category/$encodedId")
+                            },
+                            onEditItem = { item ->
+                                val encodedId = URLEncoder.encode(item.id, StandardCharsets.UTF_8.toString())
+                                val encodedCategory = URLEncoder.encode(item.category, StandardCharsets.UTF_8.toString())
+                                navController.navigate("edit_item/$encodedId/$encodedCategory")
                             }
                         )
                     }
@@ -159,6 +170,19 @@ class MainActivity : ComponentActivity() {
                                         Toast.makeText(applicationContext, "Profile Updated", Toast.LENGTH_SHORT).show()
                                         navController.popBackStack()
                                     }
+                            },
+                            onLogout = {
+                                lifecycleScope.launch {
+                                    try {
+                                        googleAuthUiClient.signOut()
+                                        navController.navigate("auth") {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                        Toast.makeText(applicationContext, "Logged out successfully", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(applicationContext, "Error logging out: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
                             }
                         )
                     }
@@ -182,6 +206,35 @@ class MainActivity : ComponentActivity() {
                     }
 
                     composable(
+                        "edit_category/{categoryId}",
+                        arguments = listOf(navArgument("categoryId") { type = NavType.StringType })
+                    ) { backStackEntry ->
+                        val ownerId = Firebase.auth.currentUser?.uid ?: return@composable
+                        val encodedCategoryId = backStackEntry.arguments?.getString("categoryId") ?: ""
+                        val categoryId = URLDecoder.decode(encodedCategoryId, StandardCharsets.UTF_8.toString())
+
+                        EditCategoryScreen(
+                            categoryId = categoryId,
+                            onSaveCategory = { categoryName, startTime, endTime, deliveryTime ->
+                                val categoryData = mapOf(
+                                    "name" to categoryName,
+                                    "startTime" to startTime,
+                                    "endTime" to endTime,
+                                    "deliveryTime" to deliveryTime
+                                )
+                                Firebase.firestore.collection("restaurants").document(ownerId)
+                                    .collection("preOrderCategories")
+                                    .document(categoryId)
+                                    .update(categoryData)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(applicationContext, "Category Updated", Toast.LENGTH_SHORT).show()
+                                        navController.popBackStack()
+                                    }
+                            }
+                        )
+                    }
+
+                    composable(
                         "category_detail/{categoryName}",
                         arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
                     ) { backStackEntry ->
@@ -199,7 +252,12 @@ class MainActivity : ComponentActivity() {
                                 val encodedCategory = URLEncoder.encode(category, StandardCharsets.UTF_8.toString())
                                 navController.navigate("order_list/$encodedCategory")
                             },
-                            onDeleteItem = { itemId -> deleteMenuItem(ownerId, itemId) }
+                            onDeleteItem = { itemId -> deleteMenuItem(ownerId, itemId) },
+                            onEditItem = { item ->
+                                val encodedId = URLEncoder.encode(item.id, StandardCharsets.UTF_8.toString())
+                                val encodedCategory = URLEncoder.encode(item.category, StandardCharsets.UTF_8.toString())
+                                navController.navigate("edit_item/$encodedId/$encodedCategory")
+                            }
                         )
                     }
 
@@ -218,6 +276,9 @@ class MainActivity : ComponentActivity() {
                             },
                             onRejectOrder = { orderId, userId ->
                                 updateOrderStatus(orderId, userId, "Rejected")
+                            },
+                            onDeleteOrder = { orderId ->
+                                deleteOrder(orderId)
                             },
                             onAcceptAllOrders = { orders ->
                                 updateAllOrdersStatus(orders, "Accepted")
@@ -257,12 +318,44 @@ class MainActivity : ComponentActivity() {
                             }
                         )
                     }
+
+                    composable(
+                        "edit_item/{itemId}/{category}",
+                        arguments = listOf(
+                            navArgument("itemId") { type = NavType.StringType },
+                            navArgument("category") { type = NavType.StringType }
+                        )
+                    ) { backStackEntry ->
+                        val ownerId = Firebase.auth.currentUser?.uid ?: return@composable
+                        val encodedItemId = backStackEntry.arguments?.getString("itemId") ?: ""
+                        val itemId = URLDecoder.decode(encodedItemId, StandardCharsets.UTF_8.toString())
+                        val encodedCategory = backStackEntry.arguments?.getString("category") ?: ""
+                        val category = URLDecoder.decode(encodedCategory, StandardCharsets.UTF_8.toString())
+
+                        EditMenuItemScreen(
+                            itemId = itemId,
+                            category = category,
+                            onSaveItemClicked = { itemName, price ->
+                                val updates = mapOf(
+                                    "name" to itemName,
+                                    "price" to (price.toDoubleOrNull() ?: 0.0)
+                                )
+                                Firebase.firestore.collection("restaurants").document(ownerId)
+                                    .collection("menuItems")
+                                    .document(itemId)
+                                    .update(updates)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(applicationContext, "Item updated!", Toast.LENGTH_SHORT).show()
+                                        navController.popBackStack()
+                                    }
+                            }
+                        )
+                    }
                 }
             }
         }
     }
 
-    // ✅ Profile check
     private fun checkRestaurantProfile(userId: String, navController: NavController) {
         val db = Firebase.firestore
         db.collection("restaurants").document(userId).get()
@@ -305,7 +398,19 @@ class MainActivity : ComponentActivity() {
             }
     }
 
-    // ✅ Updated Accept/Reject for single order
+    private fun deleteOrder(orderId: String) {
+        lifecycleScope.launch {
+            try {
+                Firebase.firestore.collection("orders").document(orderId)
+                    .delete()
+                    .await()
+                Toast.makeText(applicationContext, "Order deleted successfully", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(applicationContext, "Error deleting order: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun updateOrderStatus(orderId: String, userId: String, newStatus: String) {
         lifecycleScope.launch {
             try {
@@ -314,13 +419,23 @@ class MainActivity : ComponentActivity() {
                 val restaurantDoc = db.collection("restaurants").document(restaurantId).get().await()
                 val restaurantName = restaurantDoc.getString("name") ?: "Your Restaurant"
 
-                db.collection("orders").document(orderId)
-                    .update("orderStatus", newStatus)
-                    .addOnSuccessListener {
-                        Toast.makeText(applicationContext, "Order marked as $newStatus", Toast.LENGTH_SHORT).show()
-                    }
+                if (newStatus == "Rejected") {
+                    // Delete the order instead of updating status
+                    db.collection("orders").document(orderId)
+                        .delete()
+                        .addOnSuccessListener {
+                            Toast.makeText(applicationContext, "Order rejected and removed", Toast.LENGTH_SHORT).show()
+                        }
+                } else {
+                    // Accept: just update the status
+                    db.collection("orders").document(orderId)
+                        .update("orderStatus", newStatus)
+                        .addOnSuccessListener {
+                            Toast.makeText(applicationContext, "Order marked as $newStatus", Toast.LENGTH_SHORT).show()
+                        }
+                }
 
-                // 🔔 Send OneSignal notification
+                // Send OneSignal notification
                 OneSignalNotificationHelper.sendOrderStatusNotification(
                     userId = userId,
                     orderId = orderId,
@@ -334,7 +449,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ✅ Updated Accept/Reject All
     private fun updateAllOrdersStatus(orders: List<Order>, newStatus: String) {
         if (orders.isEmpty()) return
         lifecycleScope.launch {
@@ -347,13 +461,24 @@ class MainActivity : ComponentActivity() {
                 val batch = db.batch()
                 orders.forEach { order ->
                     val docRef = db.collection("orders").document(order.id)
-                    batch.update(docRef, "orderStatus", newStatus)
+                    if (newStatus == "Rejected") {
+                        // Delete rejected orders
+                        batch.delete(docRef)
+                    } else {
+                        // Accept: update status
+                        batch.update(docRef, "orderStatus", newStatus)
+                    }
                 }
                 batch.commit().await()
 
-                Toast.makeText(applicationContext, "${orders.size} orders marked as $newStatus", Toast.LENGTH_SHORT).show()
+                val message = if (newStatus == "Rejected") {
+                    "${orders.size} orders rejected and removed"
+                } else {
+                    "${orders.size} orders marked as $newStatus"
+                }
+                Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
 
-                // 🔔 Send bulk notification
+                // Send bulk notification
                 OneSignalNotificationHelper.sendBulkOrderStatusNotification(
                     orderIds = orders.map { it.id },
                     newStatus = newStatus,
@@ -366,7 +491,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // ✅ Custom Notification Sender
     private fun sendCustomNotifications(orderIds: List<String>, message: String) {
         lifecycleScope.launch {
             try {
