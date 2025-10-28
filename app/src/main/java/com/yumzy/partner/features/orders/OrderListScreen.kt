@@ -187,7 +187,8 @@ fun OrderListScreen(
                                     itemSummary,
                                     categoryName,
                                     selectedLocation,
-                                    totalMoney
+                                    totalMoney,
+                                    restaurantName
                                 )
                                 printOrders(context, printableContent)
                             }
@@ -418,12 +419,18 @@ private fun formatOrdersToHtml(
     summary: List<ItemSummary>,
     category: String,
     location: String,
-    totalMoney: Double
+    totalMoney: Double,
+    restaurantName: String
 ): String {
     val sdf = SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault())
     val date = sdf.format(Date())
     val locationFilter = if (location == "All") "All Locations" else location
     val categoryName = category.removePrefix("Pre-order ")
+
+    // Calculate total without delivery charge (5tk per order)
+    val deliveryChargePerOrder = 5.0
+    val totalDeliveryCharge = orders.size * deliveryChargePerOrder
+    val totalWithoutDelivery = totalMoney - totalDeliveryCharge
 
     // Split summary into two columns
     val half = (summary.size + 1) / 2
@@ -446,6 +453,7 @@ private fun formatOrdersToHtml(
                 .summary-tables table { width: 48%; }
                 .orders-container { display: flex; flex-wrap: wrap; justify-content: space-between; margin-top: 20px; }
                 .order-card { box-sizing: border-box; width: 24%; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 8px; padding: 10px; page-break-inside: avoid; }
+                .order-card .restaurant-name { font-size: 9px; color: #666; text-align: center; margin-bottom: 5px; font-weight: normal; padding-bottom: 5px; border-bottom: 1px solid #ddd; }
                 .order-card .info { margin-bottom: 10px; line-height: 1.4; }
                 .order-card .items { margin-bottom: 10px; }
                 .order-card .items ul { padding-left: 20px; margin: 0; }
@@ -530,18 +538,19 @@ private fun formatOrdersToHtml(
                 </table>
             </div>
             <hr>
-            <h2>Individual Orders (${orders.size}) | Total Amount: ৳${String.format("%.2f", totalMoney)}</h2>
+            <h2>Individual Orders (${orders.size}) | Total (with delivery): ৳${String.format("%.2f", totalMoney)} | Total (without delivery): ৳${String.format("%.2f", totalWithoutDelivery)}</h2>
             <div class="orders-container">
     """.trimIndent())
 
     orders.forEach { order ->
         builder.append("""
             <div class="order-card">
+              <div class="restaurant-name">$restaurantName</div>
               <div class="info">
     <strong>${order.userName}</strong> 
     ${ if (order.fullAddress.contains("Room:")) {
             val room = order.fullAddress.substringAfter("Room:").substringBefore("\n").trim()
-            """ <span style="font-size:11px; color:#000000;">(Room:$room)</span> """
+            """ <strong>(Room:$room)</strong> """
         } else ""}<br/>
     <hr/>
     ${order.userPhone}<br/>
