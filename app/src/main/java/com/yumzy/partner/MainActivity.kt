@@ -280,6 +280,9 @@ class MainActivity : ComponentActivity() {
                             onDeleteOrder = { orderId ->
                                 deleteOrder(orderId)
                             },
+                            onMarkAsPaid = { orderId ->
+                                markOrderAsPaid(orderId)
+                            },
                             onAcceptAllOrders = { orders ->
                                 updateAllOrdersStatus(orders, "Accepted")
                             },
@@ -407,6 +410,19 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(applicationContext, "Order deleted successfully", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(applicationContext, "Error deleting order: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun markOrderAsPaid(orderId: String) {
+        lifecycleScope.launch {
+            try {
+                Firebase.firestore.collection("orders").document(orderId)
+                    .update("isPaid", true)
+                    .await()
+                Toast.makeText(applicationContext, "Order marked as paid", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(applicationContext, "Error marking as paid: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }

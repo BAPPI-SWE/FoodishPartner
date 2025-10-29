@@ -40,6 +40,7 @@ data class Order(
     val fullAddress: String = "",
     val totalPrice: Double = 0.0,
     val orderStatus: String = "",
+    val isPaid: Boolean = false,
     val items: List<Map<String, Any>> = emptyList(),
     val createdAt: Timestamp = Timestamp.now()
 )
@@ -54,6 +55,7 @@ fun OrderListScreen(
     onAcceptOrder: (orderId: String, userId: String) -> Unit,
     onRejectOrder: (orderId: String, userId: String) -> Unit,
     onDeleteOrder: (orderId: String) -> Unit,
+    onMarkAsPaid: (orderId: String) -> Unit,
     onAcceptAllOrders: (orders: List<Order>) -> Unit,
     onRejectAllOrders: (orders: List<Order>) -> Unit,
     onSendCustomNotification: (orderIds: List<String>, message: String) -> Unit
@@ -103,7 +105,8 @@ fun OrderListScreen(
                             doc.toObject(Order::class.java)?.copy(
                                 id = doc.id,
                                 userId = doc.getString("userId") ?: "",
-                                fullAddress = address
+                                fullAddress = address,
+                                isPaid = doc.getBoolean("isPaid") ?: false
                             )
                         }
                     }
@@ -309,6 +312,7 @@ fun OrderListScreen(
                         order = order,
                         onAccept = { onAcceptOrder(order.id, order.userId) },
                         onReject = { onRejectOrder(order.id, order.userId) },
+                        onMarkAsPaid = { onMarkAsPaid(order.id) },
                         onDelete = {
                             orderToDelete = order
                             showDeleteDialog = true
@@ -356,6 +360,7 @@ fun OrderCard(
     order: Order,
     onAccept: () -> Unit,
     onReject: () -> Unit,
+    onMarkAsPaid: () -> Unit,
     onDelete: () -> Unit
 ) {
     val sdf = remember { SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()) }
@@ -386,8 +391,16 @@ fun OrderCard(
                 }
             }
             Divider(Modifier.padding(vertical = 8.dp))
+
+            // Total and Paid Status
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Total: ৳${order.totalPrice}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Total: ৳${order.totalPrice}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                    if (order.isPaid) {
+                        Text("✓ Paid", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                    }
+                }
+
                 when (order.orderStatus) {
                     "Accepted" -> Button(
                         onClick = {},
@@ -408,6 +421,18 @@ fun OrderCard(
                         OutlinedButton(onClick = onReject, colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)) { Text("Reject") }
                         Button(onClick = onAccept) { Text("Accept") }
                     }
+                }
+            }
+
+            // Paid Button
+            if (!order.isPaid) {
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = onMarkAsPaid,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) {
+                    Text("Mark as Paid")
                 }
             }
         }
@@ -458,47 +483,23 @@ private fun formatOrdersToHtml(
                 .order-card .items { margin-bottom: 10px; }
                 .order-card .items ul { padding-left: 20px; margin: 0; }
                 .order-card .items li { margin-bottom: 4px; }
-                .order-card .total { font-weight: bold; text-align: right; }
+                .order-card .total-row { 
+                    display: flex; 
+                    justify-content: space-between; 
+                    align-items: center;
+                }
+                .order-card .paid-mark { 
+                    color: #4CAF50; 
+                    font-weight: bold; 
+                    font-size: 14px; 
+                }
+                .order-card .total { font-weight: bold; }
                 .greeting {
                   text-align: center;
                   font-size: 12px;
                   font-weight: bold;
                   color: #000000;
                   margin-bottom: 3px;
-                }
-                .total-summary {
-                  background-color: #f9f9f9;
-                  border: 2px solid #333;
-                  padding: 15px;
-                  margin: 20px 0;
-                  border-radius: 8px;
-                  text-align: center;
-                }
-                .total-summary h3 {
-                  margin: 0 0 10px 0;
-                  color: #333;
-                }
-                .total-summary .amounts {
-                  display: flex;
-                  justify-content: center;
-                  gap: 40px;
-                  font-size: 18px;
-                  font-weight: bold;
-                }
-                .total-summary .amount-item {
-                  display: flex;
-                  flex-direction: column;
-                  align-items: center;
-                }
-                .total-summary .amount-label {
-                  font-size: 14px;
-                  color: #666;
-                  font-weight: normal;
-                  margin-bottom: 5px;
-                }
-                .total-summary .amount-value {
-                  font-size: 20px;
-                  color: #000;
                 }
                 hr {
                   border: 0;
@@ -573,7 +574,10 @@ private fun formatOrdersToHtml(
             <strong>Enjoy your meal —<i> Yumzy!</i></strong> 
           </div>
           <hr/>
-              <div class="total">Total: ৳${order.totalPrice}</div>
+              <div class="total-row">
+                ${if (order.isPaid) """<span class="paid-mark">✓ PAID</span>""" else """<span></span>"""}
+                <span class="total">Total: ৳${order.totalPrice}</span>
+              </div>
             </div>
         """.trimIndent())
     }
