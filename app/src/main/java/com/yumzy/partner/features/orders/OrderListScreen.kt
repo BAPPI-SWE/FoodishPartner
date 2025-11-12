@@ -397,7 +397,9 @@ fun OrderCard(
                 Column {
                     Text("Total: ৳${order.totalPrice}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     if (order.isPaid) {
-                        Text("✓ Paid", style = MaterialTheme.typography.bodySmall, color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                        Text("✓ Paid", style = MaterialTheme.typography.bodySmall, color = Color(
+                            0xFF060505
+                        ), fontWeight = FontWeight.Bold)
                     }
                 }
 
