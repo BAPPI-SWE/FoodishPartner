@@ -289,6 +289,9 @@ class MainActivity : ComponentActivity() {
                             onRejectAllOrders = { orders ->
                                 updateAllOrdersStatus(orders, "Rejected")
                             },
+                            onDeleteAllOrders = { orders -> // <-- NEW
+                                deleteAllOrders(orders)
+                            },
                             onSendCustomNotification = { orderIds, message ->
                                 sendCustomNotifications(orderIds, message)
                             }
@@ -503,6 +506,27 @@ class MainActivity : ComponentActivity() {
 
             } catch (e: Exception) {
                 Toast.makeText(applicationContext, "Error updating orders: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    // <-- NEW FUNCTION
+    private fun deleteAllOrders(orders: List<Order>) {
+        if (orders.isEmpty()) return
+        lifecycleScope.launch {
+            try {
+                val db = Firebase.firestore
+                val batch = db.batch()
+                orders.forEach { order ->
+                    val docRef = db.collection("orders").document(order.id)
+                    batch.delete(docRef)
+                }
+                batch.commit().await()
+
+                Toast.makeText(applicationContext, "${orders.size} orders deleted successfully", Toast.LENGTH_SHORT).show()
+
+            } catch (e: Exception) {
+                Toast.makeText(applicationContext, "Error deleting orders: ${e.message}", Toast.LENGTH_SHORT).show()
             }
         }
     }

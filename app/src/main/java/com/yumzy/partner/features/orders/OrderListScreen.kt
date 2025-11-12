@@ -58,6 +58,7 @@ fun OrderListScreen(
     onMarkAsPaid: (orderId: String) -> Unit,
     onAcceptAllOrders: (orders: List<Order>) -> Unit,
     onRejectAllOrders: (orders: List<Order>) -> Unit,
+    onDeleteAllOrders: (orders: List<Order>) -> Unit, // <-- NEW
     onSendCustomNotification: (orderIds: List<String>, message: String) -> Unit
 ) {
     var allOrders by remember { mutableStateOf<List<Order>>(emptyList()) }
@@ -70,6 +71,7 @@ fun OrderListScreen(
     var isSending by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var orderToDelete by remember { mutableStateOf<Order?>(null) }
+    var showDeleteAllDialog by remember { mutableStateOf(false) } // <-- NEW
 
     val context = LocalContext.current
 
@@ -172,6 +174,31 @@ fun OrderListScreen(
         )
     }
 
+    // <-- NEW: Delete All confirmation dialog
+    if (showDeleteAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllDialog = false },
+            title = { Text("Delete All Orders") },
+            text = { Text("Are you sure you want to permanently delete all ${filteredOrders.size} filtered orders? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onDeleteAllOrders(filteredOrders)
+                        showDeleteAllDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Delete All")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -255,6 +282,14 @@ fun OrderListScreen(
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
                     ) { Text("Reject All") }
+
+                    OutlinedButton( // <-- NEW BUTTON
+                        onClick = { showDeleteAllDialog = true },
+                        enabled = filteredOrders.isNotEmpty(),
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red),
+                        border = BorderStroke(1.dp, Color.Red)
+                    ) { Text("Delete All") }
                 }
             }
 
