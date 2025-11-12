@@ -398,7 +398,7 @@ fun OrderCard(
                     Text("Total: ৳${order.totalPrice}", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
                     if (order.isPaid) {
                         Text("✓ Paid", style = MaterialTheme.typography.bodySmall, color = Color(
-                            0xFF060505
+                            0xFF39CE39
                         ), fontWeight = FontWeight.Bold)
                     }
                 }
@@ -491,7 +491,7 @@ private fun formatOrdersToHtml(
                     align-items: center;
                 }
                 .order-card .paid-mark { 
-                    color: #4CAF50; 
+                    color: #030303; 
                     font-weight: bold; 
                     font-size: 14px; 
                 }
