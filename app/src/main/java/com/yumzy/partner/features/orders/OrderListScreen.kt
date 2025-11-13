@@ -58,7 +58,7 @@ fun OrderListScreen(
     onMarkAsPaid: (orderId: String) -> Unit,
     onAcceptAllOrders: (orders: List<Order>) -> Unit,
     onRejectAllOrders: (orders: List<Order>) -> Unit,
-    onDeleteAllOrders: (orders: List<Order>) -> Unit, // <-- NEW
+    onDeleteAllOrders: (orders: List<Order>) -> Unit,
     onSendCustomNotification: (orderIds: List<String>, message: String) -> Unit
 ) {
     var allOrders by remember { mutableStateOf<List<Order>>(emptyList()) }
@@ -71,7 +71,7 @@ fun OrderListScreen(
     var isSending by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var orderToDelete by remember { mutableStateOf<Order?>(null) }
-    var showDeleteAllDialog by remember { mutableStateOf(false) } // <-- NEW
+    var showDeleteAllDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -110,7 +110,7 @@ fun OrderListScreen(
                                 fullAddress = address,
                                 isPaid = doc.getBoolean("isPaid") ?: false
                             )
-                        }
+                        }.filter { it.orderStatus != "Cancelled" } // <--- ADDED THIS FILTER
                     }
                 }
         }
@@ -174,7 +174,7 @@ fun OrderListScreen(
         )
     }
 
-    // <-- NEW: Delete All confirmation dialog
+    // Delete All confirmation dialog
     if (showDeleteAllDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteAllDialog = false },
@@ -283,7 +283,7 @@ fun OrderListScreen(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.Red)
                     ) { Text("Reject All") }
 
-                    OutlinedButton( // <-- NEW BUTTON
+                    OutlinedButton(
                         onClick = { showDeleteAllDialog = true },
                         enabled = filteredOrders.isNotEmpty(),
                         modifier = Modifier.weight(1f),
