@@ -576,7 +576,12 @@ private fun formatOrdersToHtml(
                 </table>
             </div>
             <hr>
-            <h2>Individual Orders (${orders.size}) | Total (with delivery): ৳${String.format("%.2f", totalMoney)} | Total (without delivery): ৳${String.format("%.2f", totalWithoutDelivery)}</h2>
+           
+<h2>
+  Orders (${orders.size})| 
+  <span style="font-weight: 999; font-size: 0.75em; color: #999;">Total(Yumzy):৳${String.format("%.2f", totalMoney)}</span> | 
+  Total Tk (Hotel): ৳${String.format("%.2f", totalWithoutDelivery)}
+</h2>
             <div class="orders-container">
     """.trimIndent())
 
