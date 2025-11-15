@@ -1,4 +1,3 @@
-
 // ============================================
 // File 1: PartnerDashboardScreen.kt
 // ============================================
@@ -31,7 +30,8 @@ data class PreOrderCategory(
     val name: String = "",
     val startTime: String = "",
     val endTime: String = "",
-    val deliveryTime: String = ""
+    val deliveryTime: String = "",
+    val open: Boolean = false
 )
 
 data class MenuItem(
@@ -70,7 +70,14 @@ fun PartnerDashboardScreen(
                 .addSnapshotListener { snapshot, _ ->
                     snapshot?.let {
                         preOrderCategories = it.documents.mapNotNull { doc ->
-                            doc.toObject(PreOrderCategory::class.java)?.copy(id = doc.id)
+                            PreOrderCategory(
+                                id = doc.id,
+                                name = doc.getString("name") ?: "",
+                                startTime = doc.getString("startTime") ?: "",
+                                endTime = doc.getString("endTime") ?: "",
+                                deliveryTime = doc.getString("deliveryTime") ?: "",
+                                open = doc.getBoolean("open") ?: false
+                            )
                         }
                     }
                     isLoading = false
@@ -138,7 +145,18 @@ fun PartnerDashboardScreen(
                         orderCount = orderCount,
                         onClick = { onNavigateToCategoryDetail("Pre-order ${category.name}") },
                         onEdit = { onEditCategory(category) },
-                        onDelete = { onDeleteCategory(category) }
+                        onDelete = { onDeleteCategory(category) },
+                        onToggleOpen = { newValue ->
+                            val ownerId = Firebase.auth.currentUser?.uid
+                            if (ownerId != null) {
+                                Firebase.firestore
+                                    .collection("restaurants")
+                                    .document(ownerId)
+                                    .collection("preOrderCategories")
+                                    .document(category.id)
+                                    .update("open", newValue)
+                            }
+                        }
                     )
                 }
 
@@ -186,39 +204,73 @@ fun PreOrderCategoryCard(
     orderCount: Int,
     onClick: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggleOpen: (Boolean) -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BadgedBox(
-                badge = {
-                    if(orderCount > 0) {
-                        Badge { Text("$orderCount") }
-                    }
-                },
-                modifier = Modifier.padding(end = 8.dp)
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Main row with category info
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, top = 16.dp, bottom = 8.dp, end = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.ReceiptLong, contentDescription = "View Orders")
+                BadgedBox(
+                    badge = {
+                        if (orderCount > 0) {
+                            Badge { Text("$orderCount") }
+                        }
+                    },
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Icon(Icons.Default.ReceiptLong, contentDescription = "View Orders")
+                }
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(text = category.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Text(text = "Order: ${category.startTime} - ${category.endTime}", color = Color.Gray, fontSize = 14.sp)
+                    Text(text = "Delivery: ${category.deliveryTime}", color = Color.Gray, fontSize = 14.sp)
+                }
+                IconButton(onClick = onClick) {
+                    Icon(Icons.Default.ChevronRight, contentDescription = "View Category")
+                }
+                IconButton(onClick = onEdit) {
+                    Icon(Icons.Default.Edit, contentDescription = "Edit Category", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = Color.Gray)
+                }
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(text = category.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = "Order: ${category.startTime} - ${category.endTime}", color = Color.Gray, fontSize = 14.sp)
-                Text(text = "Delivery: ${category.deliveryTime}", color = Color.Gray, fontSize = 14.sp)
-            }
-            IconButton(onClick = onClick) {
-                Icon(Icons.Default.ChevronRight, contentDescription = "View Category")
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Default.Edit, contentDescription = "Edit Category", tint = MaterialTheme.colorScheme.primary)
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete Category", tint = Color.Gray)
+
+            // Toggle row for open/close status
+            Divider(modifier = Modifier.padding(horizontal = 16.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (category.open) "Accepting Orders" else "Closed",
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = if (category.open) MaterialTheme.colorScheme.primary else Color.Gray
+                    )
+                    Text(
+                        text = if (category.open) "Users can place orders now" else "Orders are currently disabled",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+                Switch(
+                    checked = category.open,
+                    onCheckedChange = onToggleOpen
+                )
             }
         }
     }
