@@ -9,6 +9,9 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -24,6 +27,8 @@ import com.google.firebase.firestore.ktx.firestore
 import com.google.firebase.ktx.Firebase
 import com.yumzy.partner.auth.AuthScreen
 import com.yumzy.partner.auth.AuthViewModel
+import com.yumzy.partner.auth.EmailAuthClient
+import com.yumzy.partner.auth.EmailAuthScreen
 import com.yumzy.partner.auth.GoogleAuthUiClient
 import com.yumzy.partner.features.dashboard.PartnerDashboardScreen
 import com.yumzy.partner.features.menu.AddMenuItemScreen
@@ -52,6 +57,10 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    private val emailAuthClient by lazy {
+        EmailAuthClient()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -66,7 +75,10 @@ class MainActivity : ComponentActivity() {
 
                         LaunchedEffect(Unit) {
                             val currentUser = googleAuthUiClient.getSignedInUser()
-                            if (currentUser != null) checkRestaurantProfile(currentUser.userId, navController)
+                                ?: emailAuthClient.getSignedInUser()
+                            if (currentUser != null) {
+                                checkRestaurantProfile(currentUser.userId, navController)
+                            }
                         }
 
                         val launcher = rememberLauncherForActivityResult(
@@ -85,6 +97,7 @@ class MainActivity : ComponentActivity() {
                         LaunchedEffect(state.isSignInSuccessful) {
                             if (state.isSignInSuccessful) {
                                 val userId = googleAuthUiClient.getSignedInUser()?.userId
+                                    ?: emailAuthClient.getSignedInUser()?.userId
                                 if (userId != null) checkRestaurantProfile(userId, navController)
                                 viewModel.resetState()
                             }
@@ -100,7 +113,87 @@ class MainActivity : ComponentActivity() {
                                         ).build()
                                     )
                                 }
+                            },
+                            onEmailSignIn = {
+                                navController.navigate("email_auth")
                             }
+                        )
+                    }
+
+                    composable("email_auth") {
+                        val viewModel = viewModel<AuthViewModel>()
+                        var isLoading by remember { mutableStateOf(false) }
+
+                        EmailAuthScreen(
+                            onBackClicked = { navController.popBackStack() },
+                            onSignInSuccess = {
+                                val userId = emailAuthClient.getSignedInUser()?.userId
+                                if (userId != null) {
+                                    checkRestaurantProfile(userId, navController)
+                                }
+                            },
+                            onSignIn = { email, password ->
+                                isLoading = true
+                                lifecycleScope.launch {
+                                    val result = emailAuthClient.signInWithEmail(email, password)
+                                    isLoading = false
+
+                                    if (result.data != null) {
+                                        viewModel.onSignInResult(result)
+                                        val userId = result.data.userId
+                                        checkRestaurantProfile(userId, navController)
+                                    } else {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            result.errorMessage ?: "Sign in failed",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            onSignUp = { email, password, name ->
+                                isLoading = true
+                                lifecycleScope.launch {
+                                    val result = emailAuthClient.signUpWithEmail(email, password, name)
+                                    isLoading = false
+
+                                    if (result.data != null) {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            "Account created successfully!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        viewModel.onSignInResult(result)
+                                        val userId = result.data.userId
+                                        checkRestaurantProfile(userId, navController)
+                                    } else {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            result.errorMessage ?: "Sign up failed",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            onForgotPassword = { email ->
+                                lifecycleScope.launch {
+                                    val result = emailAuthClient.sendPasswordResetEmail(email)
+                                    if (result.success) {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            "Password reset email sent! Check your inbox.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    } else {
+                                        Toast.makeText(
+                                            applicationContext,
+                                            result.errorMessage ?: "Failed to send reset email",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            },
+                            isLoading = isLoading
                         )
                     }
 
@@ -175,6 +268,7 @@ class MainActivity : ComponentActivity() {
                                 lifecycleScope.launch {
                                     try {
                                         googleAuthUiClient.signOut()
+                                        emailAuthClient.signOut()
                                         navController.navigate("auth") {
                                             popUpTo(0) { inclusive = true }
                                         }
@@ -289,7 +383,7 @@ class MainActivity : ComponentActivity() {
                             onRejectAllOrders = { orders ->
                                 updateAllOrdersStatus(orders, "Rejected")
                             },
-                            onDeleteAllOrders = { orders -> // <-- NEW
+                            onDeleteAllOrders = { orders ->
                                 deleteAllOrders(orders)
                             },
                             onSendCustomNotification = { orderIds, message ->
@@ -439,14 +533,12 @@ class MainActivity : ComponentActivity() {
                 val restaurantName = restaurantDoc.getString("name") ?: "Your Restaurant"
 
                 if (newStatus == "Rejected") {
-                    // Delete the order instead of updating status
                     db.collection("orders").document(orderId)
                         .delete()
                         .addOnSuccessListener {
                             Toast.makeText(applicationContext, "Order rejected and removed", Toast.LENGTH_SHORT).show()
                         }
                 } else {
-                    // Accept: just update the status
                     db.collection("orders").document(orderId)
                         .update("orderStatus", newStatus)
                         .addOnSuccessListener {
@@ -454,7 +546,6 @@ class MainActivity : ComponentActivity() {
                         }
                 }
 
-                // Send OneSignal notification
                 OneSignalNotificationHelper.sendOrderStatusNotification(
                     userId = userId,
                     orderId = orderId,
@@ -481,10 +572,8 @@ class MainActivity : ComponentActivity() {
                 orders.forEach { order ->
                     val docRef = db.collection("orders").document(order.id)
                     if (newStatus == "Rejected") {
-                        // Delete rejected orders
                         batch.delete(docRef)
                     } else {
-                        // Accept: update status
                         batch.update(docRef, "orderStatus", newStatus)
                     }
                 }
@@ -497,7 +586,6 @@ class MainActivity : ComponentActivity() {
                 }
                 Toast.makeText(applicationContext, message, Toast.LENGTH_SHORT).show()
 
-                // Send bulk notification
                 OneSignalNotificationHelper.sendBulkOrderStatusNotification(
                     orderIds = orders.map { it.id },
                     newStatus = newStatus,
@@ -510,7 +598,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // <-- NEW FUNCTION
     private fun deleteAllOrders(orders: List<Order>) {
         if (orders.isEmpty()) return
         lifecycleScope.launch {

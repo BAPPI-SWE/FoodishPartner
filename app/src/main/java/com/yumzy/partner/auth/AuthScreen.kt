@@ -1,6 +1,5 @@
 package com.yumzy.partner.auth
 
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,25 +12,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.yumzy.partner.R // Correct R file for this project
-import com.yumzy.partner.ui.theme.PrimaryBlue // Correct color
-import com.yumzy.partner.ui.theme.YumzyPartnerTheme // Correct Theme
+import com.yumzy.partner.R
+import com.yumzy.partner.ui.theme.PrimaryBlue
+import com.yumzy.partner.ui.theme.YumzyPartnerTheme
 
 @Composable
-fun AuthScreen(onSignInSuccess: () -> Unit) {
-    val context = LocalContext.current
-
+fun AuthScreen(
+    onSignInSuccess: () -> Unit,
+    onEmailSignIn: () -> Unit = {}
+) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(PrimaryBlue), // Use the new color
+            .background(PrimaryBlue),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
@@ -49,8 +48,6 @@ fun AuthScreen(onSignInSuccess: () -> Unit) {
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
-            // You'll need to add an icon for the partner app to the drawable folder
-            // For now, we can reuse the Google logo as a placeholder
             Image(
                 painter = painterResource(id = R.drawable.partner),
                 contentDescription = "Partner Icon",
@@ -95,7 +92,7 @@ fun AuthScreen(onSignInSuccess: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Button(
-                onClick = { Toast.makeText(context, "Email sign-in coming soon!", Toast.LENGTH_SHORT).show() },
+                onClick = { onEmailSignIn() },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = PrimaryBlue)
@@ -116,6 +113,9 @@ fun AuthScreen(onSignInSuccess: () -> Unit) {
 @Composable
 fun DefaultPreview() {
     YumzyPartnerTheme {
-        AuthScreen(onSignInSuccess = {})
+        AuthScreen(
+            onSignInSuccess = {},
+            onEmailSignIn = {}
+        )
     }
 }
